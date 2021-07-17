@@ -16,6 +16,7 @@ use yii\db\Expression;
  * @property int $status
  * @property int $contact_email
  * @property int $contact_phone
+ * @property string $auth_key
  * @property string $created
  * @property string $updated
  *
@@ -24,11 +25,13 @@ use yii\db\Expression;
  * @property PhoneNumber[] $phoneNumbers
  * @property Trip[] $trips
  */
-class User extends \yii\db\ActiveRecord
+class User extends \yii\db\ActiveRecord implements \yii\web\IdentityInterface
 {
     const STATUS_INSERTED = 0;
     const STATUS_ACTIVE = 1;
     const STATUS_BLOCKED = 2;
+    public $authKey;
+    public $accessToken;
 
     /**
      * {@inheritdoc}
@@ -44,15 +47,15 @@ class User extends \yii\db\ActiveRecord
     public function rules()
     {
         return [
-            [['uid', 'username', 'email', 'password'], 'required'],
+            [['uid', 'username', 'email', 'password', 'auth_key'], 'required'],
             [['email'], 'email'],
             [['status', 'contact_email', 'contact_phone'], 'integer'],
             [['created', 'updated'], 'safe'],
-            [['uid', 'password'], 'string', 'max' => 60],
+            [['uid', 'password', 'auth_key'], 'string', 'max' => 60],
             [['username'], 'string', 'max' => 45],
             [['email'], 'string', 'max' => 255],
             [['uid'], 'unique'],
-            [['email'], 'unique'],
+            [['email', 'auth_key'], 'unique'],
         ];
     }
 
@@ -61,8 +64,10 @@ class User extends \yii\db\ActiveRecord
      */
     public function beforeValidate()
     {
-        if($this->isNewRecord)
+        if($this->isNewRecord) {
             $this->setUid();
+            $this->setAuthKey();
+        }
 
         return parent::beforeValidate();
     }
@@ -83,7 +88,25 @@ class User extends \yii\db\ActiveRecord
      */
     private function setUid()
     {
-        $this->uid = Yii::$app->getSecurity()->generatePasswordHash(date('YmdHis').rand(1, 999999));
+        $this->uid = Yii::$app->security->generateRandomString(60);
+    }
+
+    /**
+     * setAuthKey
+     */
+    private function setAuthKey()
+    {
+        $this->auth_key = Yii::$app->security->generateRandomString(60);
+    }
+
+    /**
+     * activate
+     */
+    public function activate()
+    {
+        $this->status = self::STATUS_ACTIVE;
+        $this->setUid();
+        return $this->save();
     }
 
     /**
@@ -100,6 +123,7 @@ class User extends \yii\db\ActiveRecord
             'status' => Yii::t('app', 'Status'),
             'contact_email' => Yii::t('app', 'Contact Email'),
             'contact_phone' => Yii::t('app', 'Contact Phone'),
+            'auth_key' => Yii::t('app', 'Auth Key'),
             'created' => Yii::t('app', 'Created'),
             'updated' => Yii::t('app', 'Updated'),
         ];
@@ -144,4 +168,67 @@ class User extends \yii\db\ActiveRecord
     {
         return $this->hasMany(Trip::className(), ['user_id' => 'id']);
     }
+
+    /**
+     * Get user by email
+     */
+    public static function findByEmail($email)
+    {
+        return self::findOne(['email' => $email]);
+    }
+
+    /**
+     * validate password
+     */
+    public function validatePassword($password)
+    {
+        return Yii::$app->security->validatePassword($password, $this->password);
+    }
+
+    /**
+     * Finds an identity by the given ID.
+     *
+     * @param string|integer $id the ID to be looked for
+     *
+     * @return IdentityInterface the identity object that matches the given ID.
+     * Null should be returned if such an identity cannot be found
+     * or the identity is not in an active state (disabled, deleted, etc.)
+     */
+    public static function findIdentity($id)
+    {
+        return self::findOne($id);
+    }
+
+    /**
+     * {@inheritdoc}
+     */
+    public static function findIdentityByAccessToken($token, $type = null)
+    {
+        return null;
+    }
+
+    /**
+     * {@inheritdoc}
+     */
+    public function getId()
+    {
+        return $this->id;
+    }
+
+    /**
+     * {@inheritdoc}
+     */
+    public function getAuthKey()
+    {
+        return $this->authKey;
+    }
+
+    /**
+     * {@inheritdoc}
+     */
+    public function validateAuthKey($authKey)
+    {
+        return $this->authKey === $authKey;
+    }
+
 }
