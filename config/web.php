@@ -31,7 +31,16 @@ $config = [
             // send all mails to a file by default. You have to set
             // 'useFileTransport' to false and configure a transport
             // for the mailer to send real emails.
-            'useFileTransport' => true,
+            'useFileTransport' => false,
+            'viewPath' => '@app/mail',
+            'transport' => [
+                'class' => 'Swift_SmtpTransport',
+                'host' => 'smtp.mailtrap.io',
+                'username' => 'yourusername',
+                'password' => 'yourpassword',
+                'port' => '2525',
+                'encryption' => 'tls'
+            ],
         ],
         'log' => [
             'traceLevel' => YII_DEBUG ? 3 : 0,
